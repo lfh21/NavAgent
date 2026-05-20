@@ -9,20 +9,23 @@
   <body>
     <main class="shell">
       <header class="hero">
-        <p class="eyebrow">Programming Demo</p>
-        <h1>盲人辅助系统 Web Demo</h1>
+        <p class="eyebrow">Vision Language Navigation</p>
+        <h1 class="hero-title">盲人辅助系统 Web Demo</h1>
         <p class="hero-copy">
-          极简双模式界面：Debug 模式用于单图调试，Formal 模式用于实时视频帧 + 文字输入，持续输出场景描述或寻路指令。
+          双模式界面：Debug 模式用于单图调试，Formal 模式用于实时视频帧 + 文字输入，持续输出场景描述或寻路指令。
         </p>
       </header>
 
       <section class="toolbar">
         <button class="mode-tab is-active" data-mode="debug">Debug 模式</button>
         <button class="mode-tab" data-mode="formal">Formal 模式</button>
+        <button id="speakLatest" class="voice-button" type="button" disabled>语音播报</button>
+        <button id="stopSpeech" class="voice-button ghost" type="button">停止播报</button>
         <select id="providerSelect" class="simple-select">
           <option value="mock">Mock Demo</option>
           <option value="openai">OpenAI</option>
           <option value="deepseek">DeepSeek</option>
+          <option value="qwen">Qwen3.6 Plus</option>
           <option value="zhipu">ZhipuAI</option>
         </select>
       </section>
@@ -113,18 +116,6 @@
         </div>
       </section>
 
-      <section class="panel compact-panel">
-        <div class="panel-head">
-          <h2>接口说明</h2>
-          <p>作业要求中的三层已经拆开：前端交互、后端处理、多厂商 API 接口。</p>
-        </div>
-        <ul class="plain-list">
-          <li>Debug 模式: `POST /api/debug/analyze`</li>
-          <li>Formal 模式: `POST /api/formal/analyze`</li>
-          <li>TTS 载荷: `POST /api/tts/payload`</li>
-          <li>Provider 列表: `GET /api/providers`</li>
-        </ul>
-      </section>
     </main>
 
     <script src="/assets/app.js"></script>

@@ -2,6 +2,8 @@
   const modeTabs = document.querySelectorAll(".mode-tab");
   const panels = document.querySelectorAll("[data-panel]");
   const providerSelect = document.querySelector("#providerSelect");
+  const speakLatest = document.querySelector("#speakLatest");
+  const stopSpeech = document.querySelector("#stopSpeech");
 
   const debugTask = document.querySelector("#debugTask");
   const debugText = document.querySelector("#debugText");
@@ -24,6 +26,39 @@
   let currentStream = null;
   let liveTimer = null;
   let inFlight = false;
+  let latestTtsPayload = null;
+
+  function setLatestTtsPayload(payload) {
+    latestTtsPayload = payload && payload.text ? payload : null;
+    if (speakLatest) {
+      speakLatest.disabled = !latestTtsPayload;
+    }
+  }
+
+  function getSpeechStatusText(text) {
+    return latestTtsPayload ? text : "暂无可播报内容";
+  }
+
+  function speakPayload(payload) {
+    if (!("speechSynthesis" in window)) {
+      window.alert("当前浏览器不支持语音播报。");
+      return;
+    }
+
+    if (!payload || !payload.text) {
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(payload.text);
+    utterance.lang = payload.language || "zh-CN";
+    utterance.rate = payload.voiceHints && payload.voiceHints.pace === "fast" ? 1.15 : 1.0;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+
+    window.speechSynthesis.speak(utterance);
+  }
 
   function setMode(mode) {
     modeTabs.forEach((button) => {
@@ -35,6 +70,10 @@
   }
 
   function prettyPrintResult(data) {
+    if (data && data.ok === false) {
+      return "请求失败: " + (data.message || "后端未返回错误详情");
+    }
+
     if (!data || !data.result) {
       return "暂无结果";
     }
@@ -115,8 +154,10 @@
       });
       const data = await response.json();
       debugResult.textContent = prettyPrintResult(data);
+      setLatestTtsPayload(data && data.ok === false ? null : data.ttsPayload);
     } catch (error) {
       debugResult.textContent = "调试分析失败: " + error.message;
+      setLatestTtsPayload(null);
     }
   });
 
@@ -195,10 +236,12 @@
         }),
       });
       const data = await response.json();
-      formalStatus.textContent = "实时分析中...";
+      formalStatus.textContent = data && data.ok === false ? "实时分析失败" : "实时分析中...";
       formalResult.textContent = prettyPrintResult(data);
+      setLatestTtsPayload(data && data.ok === false ? null : data.ttsPayload);
     } catch (error) {
       formalStatus.textContent = "实时分析失败: " + error.message;
+      setLatestTtsPayload(null);
     } finally {
       inFlight = false;
     }
@@ -219,6 +262,21 @@
   });
 
   stopFormal.addEventListener("click", stopLiveLoop);
+
+  speakLatest.addEventListener("click", function () {
+    if (!latestTtsPayload) {
+      window.alert(getSpeechStatusText(""));
+      return;
+    }
+
+    speakPayload(latestTtsPayload);
+  });
+
+  stopSpeech.addEventListener("click", function () {
+    if ("speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+  });
 
   modeTabs.forEach((button) => {
     button.addEventListener("click", function () {

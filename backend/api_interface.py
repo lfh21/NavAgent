@@ -38,7 +38,7 @@ def create_app(settings):
                 "service": "blind-assist-web-demo",
                 "defaultProvider": settings["default_provider"],
                 "formalIntervalMs": settings["formal_interval_ms"],
-                "providers": ["mock", "openai", "deepseek", "zhipu"],
+                "providers": ["mock", "openai", "deepseek", "qwen", "zhipu"],
             }
         )
 
@@ -55,17 +55,22 @@ def create_app(settings):
                     },
                     {
                         "id": "openai",
-                        "label": "OpenAI SDK",
+                        "label": "GPT",
                         "enabled": bool(settings["openai"]["api_key"]),
                     },
                     {
                         "id": "deepseek",
-                        "label": "DeepSeek (OpenAI-Compatible)",
+                        "label": "DeepSeek",
                         "enabled": bool(settings["deepseek"]["api_key"]),
                     },
                     {
+                        "id": "qwen",
+                        "label": "Qwen3.6-Plus",
+                        "enabled": bool(settings["qwen"]["api_key"] and settings["qwen"]["base_url"]),
+                    },
+                    {
                         "id": "zhipu",
-                        "label": "ZhipuAI SDK",
+                        "label": "GLM",
                         "enabled": bool(settings["zhipu"]["api_key"]),
                     },
                 ],

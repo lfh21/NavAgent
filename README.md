@@ -71,6 +71,7 @@ agent-demo-api/
 
 - OpenAI SDK
 - DeepSeek 兼容 OpenAI 接口
+- Qwen3.6-Plus 兼容 OpenAI 接口
 - ZhipuAI SDK
 - Mock provider
 
@@ -94,6 +95,7 @@ agent-demo-api/
 
 - `openai`
 - `deepseek`
+- `qwen`
 - `zhipu`
 
 ### 开发语言与环境
@@ -119,6 +121,10 @@ export OPENAI_MODEL=gpt-4o-mini
 export DEEPSEEK_API_KEY=...
 export DEEPSEEK_BASE_URL=https://api.deepseek.com
 export DEEPSEEK_MODEL=deepseek-chat
+
+export QWEN_API_KEY=...
+export QWEN_BASE_URL=https://your-qwen-base-url/v1/
+export QWEN_MODEL=Qwen3.6-Plus
 
 export ZHIPU_API_KEY=...
 export ZHIPU_MODEL=glm-4v-flash

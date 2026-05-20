@@ -1,6 +1,40 @@
 import os
 
 
+def _project_root():
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def _strip_env_quotes(value):
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+        return value[1:-1]
+    return value
+
+
+def _load_env_file(path):
+    if not os.path.exists(path):
+        return
+
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+
+            key, value = line.split("=", 1)
+            key = key.strip()
+            if not key or key in os.environ:
+                continue
+
+            os.environ[key] = _strip_env_quotes(value.strip())
+
+
+def load_env_files():
+    root_dir = _project_root()
+    _load_env_file(os.path.join(root_dir, ".env"))
+    _load_env_file(os.path.join(root_dir, ".env.example"))
+
+
 def _to_bool(value, default=False):
     if value is None:
         return default
@@ -15,6 +49,8 @@ def _to_int(value, default):
 
 
 def load_settings():
+    load_env_files()
+
     return {
         "app_host": os.getenv("APP_HOST", "127.0.0.1"),
         "app_port": _to_int(os.getenv("APP_PORT"), 8000),
@@ -31,6 +67,11 @@ def load_settings():
             "api_key": os.getenv("DEEPSEEK_API_KEY", ""),
             "base_url": os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
             "model": os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
+        },
+        "qwen": {
+            "api_key": os.getenv("QWEN_API_KEY", ""),
+            "base_url": os.getenv("QWEN_BASE_URL", ""),
+            "model": os.getenv("QWEN_MODEL", "Qwen3.6-Plus"),
         },
         "zhipu": {
             "api_key": os.getenv("ZHIPU_API_KEY", ""),
