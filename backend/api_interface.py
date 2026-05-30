@@ -32,11 +32,6 @@ def _available_providers(settings):
             "enabled": bool(settings["openai"]["api_key"] and settings["openai"]["base_url"]),
         },
         {
-            "id": "ernie",
-            "label": _provider_label(settings, "ernie", "ERNIE"),
-            "enabled": bool(settings["ernie"]["api_key"] and settings["ernie"]["base_url"]),
-        },
-        {
             "id": "gemini",
             "label": _provider_label(settings, "gemini", "Gemini"),
             "enabled": bool(settings["gemini"]["api_key"]),

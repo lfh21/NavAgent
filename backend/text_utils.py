@@ -40,15 +40,61 @@ SYSTEM_PROMPT = """
 """.strip()
 
 
+GENERAL_ASSISTANCE_SYSTEM_PROMPT = """
+你是盲人视觉辅助系统的综合问答与场景理解模块。
+你的目标是根据图像直接回答用户的问题，并在必要时补充安全提醒。
+
+核心原则：
+1. 用户问什么先答什么；例如形状、颜色、物体、位置、数量、文字、动作等问题，先给出可见答案。
+2. 只基于可见信息判断；看不清、遮挡或不确定时必须说明“不确定”，不能编造。
+3. 回答要简洁，适合语音播报。
+4. 只有画面中存在真实可见、会影响安全或通行的风险时，才输出导航或风险提醒。
+5. 不要把普通视觉问答强行改写成行走建议。
+
+输出规则：
+- 只输出 JSON 对象，不要使用 Markdown，不要输出额外解释。
+- 所有文本使用中文。
+- summary 一句话，优先直接回答用户问题。
+- guidance 给 0 到 4 条相关建议；没有必要行动时返回空数组。
+- hazards 只列真实可见且影响安全或通行的风险；没有风险时返回空数组。
+- riskLevel 使用 low、medium、high、unknown。
+- confidence 为 0 到 1 之间的小数，表示对本次判断的把握程度。
+""".strip()
+
+
+def build_system_prompt(task):
+    if task == "general_assistance":
+        return GENERAL_ASSISTANCE_SYSTEM_PROMPT
+    return SYSTEM_PROMPT
+
+
 _RISK_RANK = {"unknown": 0, "low": 1, "medium": 2, "high": 3}
 _VALID_RISKS = set(_RISK_RANK.keys())
 
 
 def build_user_prompt(task, mode, user_text):
     task_instruction = {
-        "scene_description": "任务侧重：先概括场景可通行性，再指出障碍和人车风险。",
-        "navigation_guidance": "任务侧重：优先输出下一步行走、停止、转向、避让等可执行指令。",
-        "general_assistance": "任务侧重：兼顾场景理解、风险提醒和下一步建议。",
+        "scene_description": "\n".join(
+            [
+                "任务侧重：先概括画面场景，再指出会影响安全或通行的风险。",
+                "如果用户提出具体问题，请在 summary 中先直接回答，再补充必要风险。",
+            ]
+        ),
+        "navigation_guidance": "\n".join(
+            [
+                "任务侧重：优先输出下一步行走、停止、转向、避让等可执行指令。",
+                "只有当用户明确提问具体物体、形状、文字或位置时，才先回答问题再给行动建议。",
+            ]
+        ),
+        "general_assistance": "\n".join(
+            [
+                "任务侧重：这是综合辅助/视觉问答模式，不要默认只做导航提醒。",
+                "如果用户提出具体问题，summary 必须先直接回答这个问题；例如询问形状、颜色、物体、位置、数量、文字时，先给出可见答案。",
+                "guidance 只放与用户问题相关的补充建议；如果没有必要行动，返回空数组或很短的确认建议。",
+                "hazards 只列真实可见且会影响安全的风险；不要为了导航而泛化出无关风险。",
+                "riskLevel 按当前画面真实安全风险判断；普通物体识别问题通常为 low，除非画面中有明显危险。",
+            ]
+        ),
     }.get(task, "请输出适合盲人辅助场景的结果。")
 
     mode_instruction = {
@@ -67,8 +113,8 @@ def build_user_prompt(task, mode, user_text):
             "请严格输出以下 JSON 结构：",
             json_template,
             "字段约束：",
-            '- summary: 一句话，说明可通行性和最主要风险。',
-            '- guidance: 1 到 4 条短行动建议；高风险时第一条必须是“请先停止”。',
+            '- summary: 一句话；综合辅助模式下必须先回答用户具体问题，再说明必要风险。',
+            '- guidance: 0 到 4 条短建议；高风险时第一条必须是“请先停止”。',
             '- hazards[].type: 使用 obstacle|traffic|pedestrian|step|surface|construction|edge|low_hanging|unknown 等简短英文类型。',
             '- hazards[].severity: 只能是 low、medium、high、unknown。',
             '- riskLevel: 只能是 low、medium、high、unknown，并且不得低于 hazards 中最高 severity。',
@@ -77,7 +123,7 @@ def build_user_prompt(task, mode, user_text):
             "模式: {0}".format(mode),
             task_instruction,
             mode_instruction,
-            "请优先回答用户关心的问题，同时保持安全保守。",
+            "请优先回答用户关心的问题；只有与安全或通行相关时才输出导航式提醒。",
             "用户文字: {0}".format(user_text or "无"),
         ]
     )

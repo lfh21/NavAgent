@@ -70,11 +70,6 @@ def load_settings():
             "base_url": os.getenv("GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"),
             "model": os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
         },
-        "ernie": {
-            "api_key": os.getenv("ERNIE_API_KEY", ""),
-            "base_url": os.getenv("ERNIE_BASE_URL", "https://llmapi.paratera.com"),
-            "model": os.getenv("ERNIE_MODEL", "ERNIE-4.5-Turbo-VL-32K"),
-        },
         "qwen": {
             "api_key": os.getenv("QWEN_API_KEY", ""),
             "base_url": os.getenv("QWEN_BASE_URL", ""),

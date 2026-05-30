@@ -20,7 +20,6 @@
         <button id="stopSpeech" class="voice-button ghost" type="button">停止播报</button>
         <select id="providerSelect" class="simple-select">
           <option value="openai">OpenAI</option>
-          <option value="ernie">ERNIE 4.5 Turbo VL</option>
           <option value="qwen">Qwen3.6 Plus</option>
           <option value="gemini">Gemini</option>
           <option value="kimi">Kimi</option>
@@ -49,6 +48,12 @@
               <span>我的问题</span>
               <textarea id="debugText" rows="4" placeholder="例如：前方是否安全？我应该往哪里走？"></textarea>
             </label>
+            <div class="speech-input-row">
+              <button id="debugSpeechInput" class="voice-button speech-input-button" type="button" data-target="debugText">
+                语音输入
+              </button>
+              <span id="debugSpeechStatus" class="speech-status">等待语音输入</span>
+            </div>
 
             <label class="field">
               <span>上传图片</span>
@@ -88,6 +93,12 @@
               <span>我的问题</span>
               <textarea id="formalText" rows="4" placeholder="例如：持续提醒我前方障碍，必要时告诉我停下或转向。"></textarea>
             </label>
+            <div class="speech-input-row">
+              <button id="formalSpeechInput" class="voice-button speech-input-button" type="button" data-target="formalText">
+                语音输入
+              </button>
+              <span id="formalSpeechStatus" class="speech-status">等待语音输入</span>
+            </div>
 
             <label class="field">
               <span>基础间隔（毫秒）</span>

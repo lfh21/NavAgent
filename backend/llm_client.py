@@ -2,10 +2,20 @@ import json
 import urllib.error
 import urllib.request
 
-from backend.text_utils import SYSTEM_PROMPT, build_user_prompt, extract_json_object
+from backend.text_utils import build_system_prompt, build_user_prompt, extract_json_object
 
 
 def _mock_result(task, user_text):
+    if task == "general_assistance":
+        return {
+            "summary": "这是模拟回答：我会优先回答你的具体视觉问题。",
+            "guidance": [],
+            "hazards": [],
+            "riskLevel": "low",
+            "confidence": 0.8,
+            "echoText": user_text or "",
+        }
+
     if task == "navigation_guidance":
         return {
             "summary": "前方通道基本可通行，左侧存在静态障碍物。",
@@ -46,7 +56,7 @@ class BlindAssistLLMClient(object):
                 "result": _mock_result(task, user_text),
             }
 
-        if selected_provider in {"openai", "ernie", "qwen", "kimi", "zhipu"}:
+        if selected_provider in {"openai", "qwen", "kimi", "zhipu"}:
             return self._analyze_openai_compatible(
                 provider=selected_provider,
                 task=task,
@@ -96,7 +106,7 @@ class BlindAssistLLMClient(object):
             model=provider_settings.get("model"),
             temperature=0.2,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": build_system_prompt(task)},
                 {
                     "role": "user",
                     "content": [
@@ -128,7 +138,7 @@ class BlindAssistLLMClient(object):
 
         mime_type, image_base64 = self._split_data_url(image_data_url)
         payload = {
-            "system_instruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+            "system_instruction": {"parts": [{"text": build_system_prompt(task)}]},
             "contents": [
                 {
                     "role": "user",
@@ -204,7 +214,7 @@ class BlindAssistLLMClient(object):
             model=provider_settings.get("model"),
             temperature=0.2,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": build_system_prompt(task)},
                 {
                     "role": "user",
                     "content": [

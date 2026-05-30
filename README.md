@@ -72,7 +72,6 @@ agent-demo-api/
 - OpenAI SDK
 - Qwen3.6-Plus 兼容 OpenAI 接口
 - Gemini REST API
-- ERNIE-4.5-Turbo-VL-32K 兼容 OpenAI 接口
 - Kimi 兼容 OpenAI 接口
 - ZhipuAI SDK
 - Mock provider
@@ -98,7 +97,6 @@ agent-demo-api/
 
 - `openai`
 - `qwen`
-- `ernie`
 - `gemini`
 - `kimi`
 - `zhipu`
@@ -126,10 +124,6 @@ export OPENAI_MODEL=gpt-4o-mini
 export GEMINI_API_KEY=...
 export GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta
 export GEMINI_MODEL=gemini-2.5-flash
-
-export ERNIE_API_KEY=...
-export ERNIE_BASE_URL=https://llmapi.paratera.com
-export ERNIE_MODEL=ERNIE-4.5-Turbo-VL-32K
 
 export QWEN_API_KEY=...
 export QWEN_BASE_URL=https://your-qwen-base-url/v1/

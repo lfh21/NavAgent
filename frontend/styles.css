@@ -333,6 +333,41 @@ input[type="file"] {
   margin: 0 0 16px;
 }
 
+.speech-input-row {
+  display: grid;
+  grid-template-columns: minmax(112px, 0.34fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin: -4px 0 16px;
+}
+
+.speech-input-button {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.speech-input-button.is-recording {
+  border-color: rgba(215, 0, 21, 0.2);
+  background: rgba(215, 0, 21, 0.1);
+  color: var(--danger);
+}
+
+.speech-status {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.speech-status[data-tone="recording"] {
+  color: #0057b8;
+}
+
+.speech-status[data-tone="danger"] {
+  color: var(--danger);
+}
+
 .quick-action-row .voice-button,
 .quick-action-row .secondary-button {
   width: 100%;
@@ -703,6 +738,7 @@ input[type="file"] {
 
   .button-row,
   .quick-action-row,
+  .speech-input-row,
   .plain-list {
     grid-template-columns: 1fr;
   }

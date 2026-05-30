@@ -10,6 +10,8 @@
 
   const debugTask = document.querySelector("#debugTask");
   const debugText = document.querySelector("#debugText");
+  const debugSpeechInput = document.querySelector("#debugSpeechInput");
+  const debugSpeechStatus = document.querySelector("#debugSpeechStatus");
   const debugImage = document.querySelector("#debugImage");
   const debugPreview = document.querySelector("#debugPreview");
   const debugResult = document.querySelector("#debugResult");
@@ -17,6 +19,8 @@
 
   const formalTask = document.querySelector("#formalTask");
   const formalText = document.querySelector("#formalText");
+  const formalSpeechInput = document.querySelector("#formalSpeechInput");
+  const formalSpeechStatus = document.querySelector("#formalSpeechStatus");
   const formalInterval = document.querySelector("#formalInterval");
   const formalVideo = document.querySelector("#formalVideo");
   const formalCanvas = document.querySelector("#formalCanvas");
@@ -46,6 +50,9 @@
   let formalForceDetailed = false;
   let lastFrameSignature = "";
   let lastFormalState = null;
+  let activeSpeechRecognition = null;
+  let activeSpeechButton = null;
+  let activeSpeechStatus = null;
 
   function sanitizeInterval(value, fallback) {
     const numericFallback = Number(fallback || 1500);
@@ -128,8 +135,135 @@
     }
   }
 
+  function getSpeechRecognitionConstructor() {
+    return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  }
+
+  function setSpeechInputStatus(statusElement, message, tone) {
+    if (!statusElement) {
+      return;
+    }
+
+    statusElement.textContent = message;
+    statusElement.dataset.tone = tone || "idle";
+  }
+
+  function appendRecognizedText(textarea, text) {
+    const spokenText = String(text || "").trim();
+    if (!spokenText) {
+      return;
+    }
+
+    const currentValue = textarea.value.trimEnd();
+    const separator = currentValue && !/[，。！？、,.!?\s]$/.test(currentValue) ? " " : "";
+    textarea.value = currentValue + separator + spokenText;
+    textarea.focus();
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function resetSpeechInputUi(message) {
+    if (activeSpeechButton) {
+      activeSpeechButton.textContent = "语音输入";
+      activeSpeechButton.classList.remove("is-recording");
+    }
+    if (activeSpeechStatus) {
+      setSpeechInputStatus(activeSpeechStatus, message || "等待语音输入", "idle");
+    }
+
+    activeSpeechRecognition = null;
+    activeSpeechButton = null;
+    activeSpeechStatus = null;
+  }
+
+  function stopActiveSpeechRecognition(message) {
+    if (!activeSpeechRecognition) {
+      return;
+    }
+
+    const recognition = activeSpeechRecognition;
+    recognition.onend = null;
+    recognition.onerror = null;
+    try {
+      recognition.stop();
+    } catch (error) {
+      recognition.abort();
+    }
+    resetSpeechInputUi(message || "语音输入已停止");
+  }
+
+  function startSpeechInput(button, textarea, statusElement) {
+    const SpeechRecognition = getSpeechRecognitionConstructor();
+    if (!SpeechRecognition) {
+      setSpeechInputStatus(statusElement, "当前浏览器不支持语音输入，请使用 Chrome 或 Edge", "danger");
+      button.disabled = true;
+      return;
+    }
+
+    if (activeSpeechRecognition && activeSpeechButton === button) {
+      stopActiveSpeechRecognition("语音输入已停止");
+      return;
+    }
+
+    stopActiveSpeechRecognition("等待语音输入");
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "zh-CN";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+
+    activeSpeechRecognition = recognition;
+    activeSpeechButton = button;
+    activeSpeechStatus = statusElement;
+    button.textContent = "停止输入";
+    button.classList.add("is-recording");
+    setSpeechInputStatus(statusElement, "正在听，请开始说话", "recording");
+
+    recognition.onresult = function (event) {
+      let finalText = "";
+      let interimText = "";
+
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const transcript = event.results[index][0].transcript;
+        if (event.results[index].isFinal) {
+          finalText += transcript;
+        } else {
+          interimText += transcript;
+        }
+      }
+
+      if (finalText) {
+        appendRecognizedText(textarea, finalText);
+        setSpeechInputStatus(statusElement, "已写入：" + finalText.trim(), "recording");
+      } else if (interimText) {
+        setSpeechInputStatus(statusElement, "识别中：" + interimText.trim(), "recording");
+      }
+    };
+
+    recognition.onerror = function (event) {
+      const message =
+        event.error === "not-allowed"
+          ? "麦克风权限被拒绝"
+          : event.error === "no-speech"
+            ? "没有检测到语音"
+            : "语音输入失败：" + event.error;
+      setSpeechInputStatus(statusElement, message, "danger");
+    };
+
+    recognition.onend = function () {
+      resetSpeechInputUi("语音输入已结束");
+    };
+
+    try {
+      recognition.start();
+    } catch (error) {
+      resetSpeechInputUi("语音输入启动失败：" + error.message);
+      setSpeechInputStatus(statusElement, "语音输入启动失败：" + error.message, "danger");
+    }
+  }
+
   function setMode(mode) {
     currentMode = mode;
+    stopActiveSpeechRecognition("等待语音输入");
     modeTabs.forEach((button) => {
       button.classList.toggle("is-active", button.dataset.mode === mode);
     });
@@ -847,6 +981,12 @@
   });
 
   formalText.addEventListener("input", queueImmediateRefresh);
+  debugSpeechInput.addEventListener("click", function () {
+    startSpeechInput(debugSpeechInput, debugText, debugSpeechStatus);
+  });
+  formalSpeechInput.addEventListener("click", function () {
+    startSpeechInput(formalSpeechInput, formalText, formalSpeechStatus);
+  });
   formalTask.addEventListener("change", queueImmediateRefresh);
   formalInterval.addEventListener("change", function () {
     applyFormalIntervalValue(formalInterval.value || 1500, "输入框");
