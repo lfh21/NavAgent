@@ -69,41 +69,120 @@
     });
   }
 
-  function prettyPrintResult(data) {
+  function clearResult(target) {
+    target.classList.add("result-empty");
+    target.classList.remove("is-error");
+    target.innerHTML = "";
+  }
+
+  function setPlainResult(target, message, isError) {
+    target.classList.toggle("is-error", Boolean(isError));
+    target.classList.add("result-empty");
+    target.textContent = message;
+  }
+
+  function riskLabel(riskLevel) {
+    return {
+      low: "低风险",
+      medium: "中风险",
+      high: "高风险",
+      unknown: "无法判断",
+    }[riskLevel] || "无法判断";
+  }
+
+  function createList(items, emptyText, renderItem) {
+    const list = document.createElement("ul");
+    list.className = "result-list";
+
+    if (!items || !items.length) {
+      const item = document.createElement("li");
+      item.textContent = emptyText;
+      list.appendChild(item);
+      return list;
+    }
+
+    items.forEach((entry) => {
+      const item = document.createElement("li");
+      item.appendChild(renderItem(entry));
+      list.appendChild(item);
+    });
+
+    return list;
+  }
+
+  function appendSection(container, title, contentNode) {
+    const section = document.createElement("section");
+    section.className = "result-section";
+
+    const heading = document.createElement("h3");
+    heading.textContent = title;
+    section.appendChild(heading);
+    section.appendChild(contentNode);
+    container.appendChild(section);
+  }
+
+  function renderResult(target, data) {
+    target.innerHTML = "";
+
     if (data && data.ok === false) {
-      return "请求失败: " + (data.message || "后端未返回错误详情");
+      setPlainResult(target, "请求失败：" + (data.message || "后端未返回错误详情"), true);
+      return;
     }
 
     if (!data || !data.result) {
-      return "暂无结果";
+      setPlainResult(target, "暂无结果", false);
+      return;
     }
 
+    target.classList.remove("result-empty", "is-error");
     const result = data.result;
-    const guidance = (result.guidance || []).length
-      ? result.guidance.map((item) => "- " + item).join("\n")
-      : "- 无";
-    const hazards = (result.hazards || []).length
-      ? result.hazards
-          .map((item) => "- [" + (item.severity || "unknown") + "] " + (item.description || ""))
-          .join("\n")
-      : "- 无";
+    const meta = document.createElement("div");
+    meta.className = "result-meta";
 
-    return [
-      "provider: " + (data.provider || "-"),
-      "model: " + (data.model || "-"),
-      "summary: " + (result.summary || "-"),
-      "riskLevel: " + (result.riskLevel || "-"),
-      "confidence: " + (result.confidence || "-"),
-      "",
-      "guidance:",
-      guidance,
-      "",
-      "hazards:",
-      hazards,
-      "",
-      "tts:",
-      (data.ttsPayload && data.ttsPayload.text) || "-",
-    ].join("\n");
+    const modelBadge = document.createElement("span");
+    modelBadge.className = "result-badge";
+    modelBadge.textContent = data.model || data.provider || "当前模型";
+    meta.appendChild(modelBadge);
+
+    const riskBadge = document.createElement("span");
+    riskBadge.className = "result-badge risk-" + (result.riskLevel || "unknown");
+    riskBadge.textContent = riskLabel(result.riskLevel);
+    meta.appendChild(riskBadge);
+
+    const confidenceBadge = document.createElement("span");
+    confidenceBadge.className = "result-badge";
+    confidenceBadge.textContent = "置信度 " + (result.confidence ?? "-");
+    meta.appendChild(confidenceBadge);
+    target.appendChild(meta);
+
+    const summary = document.createElement("p");
+    summary.className = "result-summary";
+    summary.textContent = result.summary || "暂时无法生成稳定描述，请重新采集画面。";
+    appendSection(target, "场景概述", summary);
+
+    appendSection(
+      target,
+      "导航建议",
+      createList(result.guidance, "暂无导航建议", (entry) => document.createTextNode(entry))
+    );
+
+    appendSection(
+      target,
+      "风险提醒",
+      createList(result.hazards, "没有发现明显风险", (entry) => {
+        const wrapper = document.createElement("span");
+        const severity = document.createElement("strong");
+        severity.textContent = riskLabel(entry.severity);
+        wrapper.appendChild(severity);
+        wrapper.appendChild(document.createTextNode("：" + (entry.description || "未提供风险描述")));
+        return wrapper;
+      })
+    );
+
+    const tts = document.createElement("p");
+    tts.className = "result-tts";
+    tts.textContent = (data.ttsPayload && data.ttsPayload.text) || "暂无可播报内容。";
+    appendSection(target, "语音播报内容", tts);
   }
 
   async function loadProviders() {
@@ -114,12 +193,22 @@
       (data.providers || []).forEach((provider) => {
         const option = document.createElement("option");
         option.value = provider.id;
+        option.dataset.enabled = provider.enabled ? "true" : "false";
         option.textContent = provider.enabled ? provider.label : provider.label + "（未配置）";
         providerSelect.appendChild(option);
       });
-      providerSelect.value = data.defaultProvider || "mock";
+      const firstEnabled = providerSelect.querySelector('[data-enabled="true"]');
+      const defaultProvider = data.defaultProvider || "";
+      const defaultOption = providerSelect.querySelector('[value="' + defaultProvider + '"]');
+      providerSelect.value = firstEnabled
+        ? firstEnabled.value
+        : defaultOption
+          ? defaultOption.value
+          : providerSelect.options[0].value;
     } catch (error) {
-      providerSelect.value = "mock";
+      if (providerSelect.options.length) {
+        providerSelect.value = providerSelect.options[0].value;
+      }
     }
   }
 
@@ -145,7 +234,7 @@
     form.append("task", debugTask.value);
     form.append("text", debugText.value.trim());
 
-    debugResult.textContent = "正在分析...";
+    setPlainResult(debugResult, "正在分析...", false);
 
     try {
       const response = await fetch("/api/debug/analyze", {
@@ -153,10 +242,10 @@
         body: form,
       });
       const data = await response.json();
-      debugResult.textContent = prettyPrintResult(data);
+      renderResult(debugResult, data);
       setLatestTtsPayload(data && data.ok === false ? null : data.ttsPayload);
     } catch (error) {
-      debugResult.textContent = "调试分析失败: " + error.message;
+      setPlainResult(debugResult, "调试分析失败：" + error.message, true);
       setLatestTtsPayload(null);
     }
   });
@@ -237,7 +326,7 @@
       });
       const data = await response.json();
       formalStatus.textContent = data && data.ok === false ? "实时分析失败" : "实时分析中...";
-      formalResult.textContent = prettyPrintResult(data);
+      renderResult(formalResult, data);
       setLatestTtsPayload(data && data.ok === false ? null : data.ttsPayload);
     } catch (error) {
       formalStatus.textContent = "实时分析失败: " + error.message;

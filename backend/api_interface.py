@@ -12,6 +12,48 @@ from file_utils import (
 )
 
 
+def _provider_label(settings, provider_id, fallback):
+    provider_settings = settings[provider_id]
+    enabled = bool(provider_settings.get("api_key") and provider_settings.get("base_url", True))
+    model = provider_settings.get("model")
+    return model if enabled and model else fallback
+
+
+def _available_providers(settings):
+    providers = [
+        {
+            "id": "qwen",
+            "label": _provider_label(settings, "qwen", "Qwen"),
+            "enabled": bool(settings["qwen"]["api_key"] and settings["qwen"]["base_url"]),
+        },
+        {
+            "id": "openai",
+            "label": _provider_label(settings, "openai", "GPT"),
+            "enabled": bool(settings["openai"]["api_key"] and settings["openai"]["base_url"]),
+        },
+        {
+            "id": "gemini",
+            "label": _provider_label(settings, "gemini", "Gemini"),
+            "enabled": bool(settings["gemini"]["api_key"]),
+        },
+        {
+            "id": "kimi",
+            "label": _provider_label(settings, "kimi", "Kimi"),
+            "enabled": bool(settings["kimi"]["api_key"] and settings["kimi"]["base_url"]),
+        },
+        {
+            "id": "zhipu",
+            "label": _provider_label(settings, "zhipu", "GLM"),
+            "enabled": bool(settings["zhipu"]["api_key"] and settings["zhipu"]["base_url"]),
+        },
+    ]
+
+    if any(provider["enabled"] for provider in providers):
+        providers.sort(key=lambda provider: 0 if provider["enabled"] else 1)
+
+    return providers
+
+
 def create_app(settings):
     app = Flask(
         __name__,
@@ -38,7 +80,7 @@ def create_app(settings):
                 "service": "blind-assist-web-demo",
                 "defaultProvider": settings["default_provider"],
                 "formalIntervalMs": settings["formal_interval_ms"],
-                "providers": ["mock", "openai", "deepseek", "qwen", "zhipu"],
+                "providers": [provider["id"] for provider in _available_providers(settings)],
             }
         )
 
@@ -47,33 +89,7 @@ def create_app(settings):
         return jsonify(
             {
                 "defaultProvider": settings["default_provider"],
-                "providers": [
-                    {
-                        "id": "mock",
-                        "label": "Mock Demo",
-                        "enabled": True,
-                    },
-                    {
-                        "id": "openai",
-                        "label": "GPT",
-                        "enabled": bool(settings["openai"]["api_key"]),
-                    },
-                    {
-                        "id": "deepseek",
-                        "label": "DeepSeek",
-                        "enabled": bool(settings["deepseek"]["api_key"]),
-                    },
-                    {
-                        "id": "qwen",
-                        "label": "Qwen3.6-Plus",
-                        "enabled": bool(settings["qwen"]["api_key"] and settings["qwen"]["base_url"]),
-                    },
-                    {
-                        "id": "zhipu",
-                        "label": "GLM",
-                        "enabled": bool(settings["zhipu"]["api_key"]),
-                    },
-                ],
+                "providers": _available_providers(settings),
             }
         )
 

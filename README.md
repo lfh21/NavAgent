@@ -70,8 +70,9 @@ agent-demo-api/
 支持：
 
 - OpenAI SDK
-- DeepSeek 兼容 OpenAI 接口
 - Qwen3.6-Plus 兼容 OpenAI 接口
+- Gemini REST API
+- Kimi 兼容 OpenAI 接口
 - ZhipuAI SDK
 - Mock provider
 
@@ -86,16 +87,18 @@ agent-demo-api/
 ### 大模型 API 文档
 
 - OpenAI SDK
-- DeepSeek API / OpenAI-Compatible 接口
+- Gemini API
+- Kimi API / OpenAI-Compatible 接口
 - ZhipuAI SDK
 
 ### API Key
 
-需要自行准备。当前 Demo 预留了三家 provider：
+需要自行准备。当前 Demo 支持这些 provider：
 
 - `openai`
-- `deepseek`
 - `qwen`
+- `gemini`
+- `kimi`
 - `zhipu`
 
 ### 开发语言与环境
@@ -118,13 +121,17 @@ export OPENAI_API_KEY=...
 export OPENAI_BASE_URL=https://api.openai.com/v1
 export OPENAI_MODEL=gpt-4o-mini
 
-export DEEPSEEK_API_KEY=...
-export DEEPSEEK_BASE_URL=https://api.deepseek.com
-export DEEPSEEK_MODEL=deepseek-chat
+export GEMINI_API_KEY=...
+export GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta
+export GEMINI_MODEL=gemini-2.5-flash
 
 export QWEN_API_KEY=...
 export QWEN_BASE_URL=https://your-qwen-base-url/v1/
 export QWEN_MODEL=Qwen3.6-Plus
+
+export KIMI_API_KEY=...
+export KIMI_BASE_URL=https://api.moonshot.cn/v1
+export KIMI_MODEL=kimi-k2.6
 
 export ZHIPU_API_KEY=...
 export ZHIPU_MODEL=glm-4v-flash

@@ -3,36 +3,33 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Blind Assist Demo</title>
+    <title>盲人辅助系统</title>
     <link rel="stylesheet" href="/assets/styles.css" />
   </head>
   <body>
     <main class="shell">
       <header class="hero">
         <p class="eyebrow">Vision Language Navigation</p>
-        <h1 class="hero-title">盲人辅助系统 Web Demo</h1>
-        <p class="hero-copy">
-          双模式界面：Debug 模式用于单图调试，Formal 模式用于实时视频帧 + 文字输入，持续输出场景描述或寻路指令。
-        </p>
+        <h1 class="hero-title">盲人辅助系统</h1>
       </header>
 
       <section class="toolbar">
-        <button class="mode-tab is-active" data-mode="debug">Debug 模式</button>
-        <button class="mode-tab" data-mode="formal">Formal 模式</button>
+        <button class="mode-tab is-active" data-mode="debug">图片导航模式</button>
+        <button class="mode-tab" data-mode="formal">视频导航模式</button>
         <button id="speakLatest" class="voice-button" type="button" disabled>语音播报</button>
         <button id="stopSpeech" class="voice-button ghost" type="button">停止播报</button>
         <select id="providerSelect" class="simple-select">
-          <option value="mock">Mock Demo</option>
           <option value="openai">OpenAI</option>
-          <option value="deepseek">DeepSeek</option>
           <option value="qwen">Qwen3.6 Plus</option>
+          <option value="gemini">Gemini</option>
+          <option value="kimi">Kimi</option>
           <option value="zhipu">ZhipuAI</option>
         </select>
       </section>
 
       <section class="panel mode-panel" data-panel="debug">
         <div class="panel-head">
-          <h2>Debug</h2>
+          <h2>图片导航</h2>
           <p>上传一张图片，返回稳定的场景分析结果。</p>
         </div>
 
@@ -48,8 +45,8 @@
             </label>
 
             <label class="field">
-              <span>用户文字</span>
-              <textarea id="debugText" rows="4" placeholder="例如：请描述前方环境，告诉我是否安全。"></textarea>
+              <span>我的问题</span>
+              <textarea id="debugText" rows="4" placeholder="例如：前方是否安全？我应该往哪里走？"></textarea>
             </label>
 
             <label class="field">
@@ -64,14 +61,14 @@
             <div class="preview-wrap">
               <img id="debugPreview" alt="调试图片预览" />
             </div>
-            <pre id="debugResult" class="result-box">等待调试结果…</pre>
+            <div id="debugResult" class="result-box result-empty">上传图片后，将在这里显示导航建议。</div>
           </div>
         </div>
       </section>
 
       <section class="panel mode-panel is-hidden" data-panel="formal">
         <div class="panel-head">
-          <h2>Formal</h2>
+          <h2>视频导航</h2>
           <p>实时摄像头帧 + 文字输入，持续输出描述或寻路指令。</p>
         </div>
 
@@ -87,8 +84,8 @@
             </label>
 
             <label class="field">
-              <span>实时文字输入</span>
-              <textarea id="formalText" rows="4" placeholder="例如：持续告诉我前方障碍，并在需要时给我转向提示。"></textarea>
+              <span>我的问题</span>
+              <textarea id="formalText" rows="4" placeholder="例如：持续提醒我前方障碍，必要时告诉我停下或转向。"></textarea>
             </label>
 
             <label class="field">
@@ -109,8 +106,8 @@
               <canvas id="formalCanvas" hidden></canvas>
             </div>
             <div class="live-summary">
-              <p id="formalStatus">Formal 模式待启动。</p>
-              <pre id="formalResult" class="result-box">等待实时结果…</pre>
+              <p id="formalStatus">视频导航模式待启动。</p>
+              <div id="formalResult" class="result-box result-empty">启动摄像头后，将在这里显示实时导航结果。</div>
             </div>
           </div>
         </div>

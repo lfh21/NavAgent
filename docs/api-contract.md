@@ -13,7 +13,7 @@
 ### 表单模式
 
 - `image`: 图片文件
-- `provider`: `mock|openai|deepseek|zhipu`
+- `provider`: `openai|qwen|gemini|kimi|zhipu`
 - `task`: `scene_description|navigation_guidance|general_assistance`
 - `text`: 用户输入
 
