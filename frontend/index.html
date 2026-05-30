@@ -14,8 +14,8 @@
       </header>
 
       <section class="toolbar">
-        <button class="mode-tab is-active" data-mode="debug">图片导航模式</button>
-        <button class="mode-tab" data-mode="formal">视频导航模式</button>
+        <button class="mode-tab" data-mode="debug">图片导航模式</button>
+        <button class="mode-tab is-active" data-mode="formal">视频导航模式</button>
         <button id="speakLatest" class="voice-button" type="button" disabled>语音播报</button>
         <button id="stopSpeech" class="voice-button ghost" type="button">停止播报</button>
         <select id="providerSelect" class="simple-select">
@@ -27,7 +27,7 @@
         </select>
       </section>
 
-      <section class="panel mode-panel" data-panel="debug">
+      <section class="panel mode-panel is-hidden" data-panel="debug">
         <div class="panel-head">
           <h2>图片导航</h2>
           <p>上传一张图片，返回稳定的场景分析结果。</p>
@@ -66,7 +66,7 @@
         </div>
       </section>
 
-      <section class="panel mode-panel is-hidden" data-panel="formal">
+      <section class="panel mode-panel" data-panel="formal">
         <div class="panel-head">
           <h2>视频导航</h2>
           <p>实时摄像头帧 + 文字输入，持续输出描述或寻路指令。</p>
@@ -89,9 +89,34 @@
             </label>
 
             <label class="field">
-              <span>发送间隔（毫秒）</span>
+              <span>基础间隔（毫秒）</span>
               <input id="formalInterval" type="number" min="800" step="100" value="1500" />
             </label>
+
+            <div class="hint-row">
+              <span id="formalEventBadge" class="hint-chip" data-event="idle">等待启动</span>
+              <span id="formalNextIntervalBadge" class="hint-chip">下一轮 1500ms</span>
+              <span id="formalSessionBadge" class="hint-chip">会话未启动</span>
+              <span class="hint-chip subtle">空格：开始 / 暂停 / 继续</span>
+              <span class="hint-chip subtle">S：播报当前结果</span>
+              <span class="hint-chip subtle">X：停止播报</span>
+              <span class="hint-chip subtle">- / +：调整基础间隔</span>
+            </div>
+
+            <div class="quick-action-row">
+              <button id="formalSpeakLatest" class="voice-button" type="button" disabled aria-keyshortcuts="S">
+                播报当前结果
+              </button>
+              <button id="formalStopSpeech" class="voice-button ghost" type="button" aria-keyshortcuts="X">
+                停止播报
+              </button>
+              <button id="formalIntervalDown" class="secondary-button" type="button" aria-keyshortcuts="-">
+                更快 -100ms
+              </button>
+              <button id="formalIntervalUp" class="secondary-button" type="button" aria-keyshortcuts="+">
+                更慢 +100ms
+              </button>
+            </div>
 
             <div class="button-row">
               <button id="startCamera" class="secondary-button">打开摄像头</button>
@@ -106,13 +131,12 @@
               <canvas id="formalCanvas" hidden></canvas>
             </div>
             <div class="live-summary">
-              <p id="formalStatus">视频导航模式待启动。</p>
+              <p id="formalStatus" data-tone="info">正式模式待启动。按空格即可开始实时分析。</p>
               <div id="formalResult" class="result-box result-empty">启动摄像头后，将在这里显示实时导航结果。</div>
             </div>
           </div>
         </div>
       </section>
-
     </main>
 
     <script src="/assets/app.js"></script>

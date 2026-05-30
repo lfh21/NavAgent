@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request, send_from_directory
 
 from backend.file_tools import append_formal_log, save_debug_artifact
 from backend.llm_client import BlindAssistLLMClient
-from backend.text_utils import build_tts_payload, normalize_result
+from backend.text_utils import build_formal_feedback, build_tts_payload, normalize_result
 from file_utils import (
     ensure_directory,
     get_frontend_dir,
@@ -54,6 +54,22 @@ def _available_providers(settings):
     return providers
 
 
+def _coerce_formal_state(payload):
+    if not isinstance(payload, dict):
+        return {}
+
+    guidance = payload.get("guidance")
+    if not isinstance(guidance, list):
+        guidance = []
+
+    return {
+        "summary": payload.get("lastSummary") or payload.get("summary") or "",
+        "guidance": guidance,
+        "riskLevel": payload.get("lastRiskLevel") or payload.get("riskLevel") or "unknown",
+        "lastSpokenText": payload.get("lastSpokenText") or "",
+    }
+
+
 def create_app(settings):
     app = Flask(
         __name__,
@@ -63,6 +79,7 @@ def create_app(settings):
     ensure_directory(project_path(settings["output_dir"]))
     frontend_dir = get_frontend_dir()
     llm_client = BlindAssistLLMClient(settings)
+    formal_sessions = {}
 
     @app.route("/")
     def index():
@@ -159,6 +176,9 @@ def create_app(settings):
             user_text = payload.get("text", "")
             session_id = payload.get("sessionId", "default-formal-session")
             mime_type = payload.get("mimeType", "image/jpeg")
+            client_state = _coerce_formal_state(payload.get("clientState"))
+            previous_state = formal_sessions.get(session_id) or client_state
+            force_detailed = bool((payload.get("clientState") or {}).get("forceDetailed"))
 
             image_bytes = image_input_to_bytes(image_base64)
             image_data_url = image_bytes_to_data_url(image_bytes, mime_type)
@@ -170,16 +190,27 @@ def create_app(settings):
                 image_data_url=image_data_url,
             )
             normalized = normalize_result(llm_result["result"], task=task, user_text=user_text)
+            formal_feedback = build_formal_feedback(
+                result=normalized,
+                previous_state=previous_state,
+                default_interval_ms=payload.get("requestedIntervalMs", settings["formal_interval_ms"]),
+                force_detailed=force_detailed,
+            )
             response_payload = {
                 "ok": True,
                 "mode": "formal",
                 "provider": llm_result["provider"],
                 "model": llm_result["model"],
                 "sessionId": session_id,
+                "frameMeta": payload.get("frameMeta") or {},
                 "result": normalized,
-                "ttsPayload": build_tts_payload(normalized),
+                "ttsPayload": formal_feedback["ttsPayload"],
+                "shouldSpeak": formal_feedback["shouldSpeak"],
+                "eventType": formal_feedback["eventType"],
+                "nextIntervalMs": formal_feedback["nextIntervalMs"],
             }
 
+            formal_sessions[session_id] = formal_feedback["sessionState"]
             append_formal_log(
                 output_dir=project_path(settings["output_dir"]),
                 session_id=session_id,

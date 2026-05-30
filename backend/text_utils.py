@@ -40,6 +40,10 @@ SYSTEM_PROMPT = """
 """.strip()
 
 
+_RISK_RANK = {"unknown": 0, "low": 1, "medium": 2, "high": 3}
+_VALID_RISKS = set(_RISK_RANK.keys())
+
+
 def build_user_prompt(task, mode, user_text):
     task_instruction = {
         "scene_description": "任务侧重：先概括场景可通行性，再指出障碍和人车风险。",
@@ -68,7 +72,7 @@ def build_user_prompt(task, mode, user_text):
             '- hazards[].type: 使用 obstacle|traffic|pedestrian|step|surface|construction|edge|low_hanging|unknown 等简短英文类型。',
             '- hazards[].severity: 只能是 low、medium、high、unknown。',
             '- riskLevel: 只能是 low、medium、high、unknown，并且不得低于 hazards 中最高 severity。',
-            "- confidence: 0 到 1；画面模糊、遮挡或关键区域不可见时不要高于 0.5。",
+            '- confidence: 0 到 1；画面模糊、遮挡或关键区域不可见时不要高于 0.5。',
             "任务类型: {0}".format(task),
             "模式: {0}".format(mode),
             task_instruction,
@@ -79,13 +83,44 @@ def build_user_prompt(task, mode, user_text):
     )
 
 
-_RISK_RANK = {"unknown": 0, "low": 1, "medium": 2, "high": 3}
-_VALID_RISKS = set(_RISK_RANK.keys())
-
-
 def _normalize_risk(value):
     value = str(value or "unknown").strip().lower()
     return value if value in _VALID_RISKS else "unknown"
+
+
+def _normalize_text(value):
+    return " ".join(str(value or "").split())
+
+
+def _normalize_guidance_items(guidance):
+    if not isinstance(guidance, list):
+        return []
+
+    normalized = []
+    for item in guidance:
+        text = _normalize_text(item)
+        if text:
+            normalized.append(text)
+    return normalized
+
+
+def _normalize_hazards(hazards):
+    if not isinstance(hazards, list):
+        return []
+
+    normalized = []
+    for item in hazards:
+        if not isinstance(item, dict):
+            continue
+
+        normalized.append(
+            {
+                "type": _normalize_text(item.get("type")).lower() or "unknown",
+                "severity": _normalize_risk(item.get("severity")),
+                "description": _normalize_text(item.get("description")) or "未提供风险描述",
+            }
+        )
+    return normalized
 
 
 def _highest_hazard_risk(hazards):
@@ -97,6 +132,41 @@ def _highest_hazard_risk(hazards):
         if _RISK_RANK[severity] > _RISK_RANK[highest]:
             highest = severity
     return highest
+
+
+def _dedupe_sentences(items):
+    unique = []
+    seen = set()
+    for item in items:
+        text = _normalize_text(item).strip("。；，,. ")
+        if not text:
+            continue
+
+        key = text.replace(" ", "")
+        if key in seen:
+            continue
+
+        seen.add(key)
+        unique.append(text + "。")
+
+    return "".join(unique)
+
+
+def _select_next_interval_ms(risk_level, event_type, default_interval_ms):
+    try:
+        base_interval = int(default_interval_ms)
+    except (TypeError, ValueError):
+        base_interval = 1500
+
+    base_interval = max(800, min(5000, base_interval))
+
+    if risk_level == "high":
+        return 900
+    if risk_level in {"medium", "unknown"}:
+        return 1200
+    if event_type == "change":
+        return base_interval
+    return min(max(base_interval + 700, 2000), 3200)
 
 
 def extract_json_object(text):
@@ -122,9 +192,8 @@ def extract_json_object(text):
 
 def normalize_result(raw_result, task, user_text):
     raw_result = raw_result if isinstance(raw_result, dict) else {}
-    hazards = raw_result.get("hazards")
-    guidance = raw_result.get("guidance")
-    normalized_hazards = hazards if isinstance(hazards, list) else []
+    normalized_hazards = _normalize_hazards(raw_result.get("hazards"))
+    guidance = _normalize_guidance_items(raw_result.get("guidance"))
     model_risk = _normalize_risk(raw_result.get("riskLevel"))
     hazard_risk = _highest_hazard_risk(normalized_hazards)
     risk_level = model_risk
@@ -132,8 +201,8 @@ def normalize_result(raw_result, task, user_text):
         risk_level = hazard_risk
 
     normalized = {
-        "summary": raw_result.get("summary") or "暂时无法生成稳定描述，请重新采集画面。",
-        "guidance": guidance if isinstance(guidance, list) else [],
+        "summary": _normalize_text(raw_result.get("summary")) or "暂时无法生成稳定描述，请重新采集画面。",
+        "guidance": guidance,
         "hazards": normalized_hazards,
         "riskLevel": risk_level,
         "confidence": raw_result.get("confidence", 0.5),
@@ -146,21 +215,133 @@ def normalize_result(raw_result, task, user_text):
     except (TypeError, ValueError):
         normalized["confidence"] = 0.5
 
+    if normalized["riskLevel"] == "unknown":
+        normalized["confidence"] = min(normalized["confidence"], 0.5)
+
     return normalized
 
 
-def build_tts_payload(result, language="zh-CN"):
-    summary = result.get("summary", "")
-    guidance = "".join(result.get("guidance", []))
-    hazards = "".join(item.get("description", "") for item in result.get("hazards", []))
-    combined_text = "".join(part for part in [summary, hazards, guidance] if part)
+def build_tts_payload(result, language="zh-CN", mode="debug", event_type=None):
+    result = result if isinstance(result, dict) else {}
+    summary = _normalize_text(result.get("summary"))
+    guidance = _normalize_guidance_items(result.get("guidance"))
+    hazards = []
+    for item in result.get("hazards", []):
+        if isinstance(item, dict):
+            description = _normalize_text(item.get("description"))
+            if description:
+                hazards.append(description)
+    risk_level = _normalize_risk(result.get("riskLevel"))
+
+    if mode == "formal":
+        segments = []
+        primary_hazard = hazards[0] if hazards else ""
+
+        if risk_level == "high":
+            if guidance:
+                segments.append(guidance[0])
+                segments.extend(guidance[1:2])
+            else:
+                segments.append("请先停止")
+            if primary_hazard:
+                segments.append(primary_hazard)
+            if summary:
+                segments.append(summary)
+        elif event_type in {"warning", "change"}:
+            if summary:
+                segments.append(summary)
+            if primary_hazard:
+                segments.append(primary_hazard)
+            segments.extend(guidance[:2])
+        else:
+            if summary:
+                segments.append(summary)
+            segments.extend(guidance[:1])
+
+        combined_text = _dedupe_sentences(segments[:3])
+    else:
+        combined_text = _dedupe_sentences([summary] + hazards[:1] + guidance[:2])
+
+    priority = "high" if risk_level in {"high", "unknown"} or event_type in {"warning", "danger"} else "normal"
+    pace = "fast" if risk_level == "high" else "steady"
 
     return {
         "text": combined_text or summary or "暂无可播报内容。",
         "language": language,
-        "priority": "high" if result.get("riskLevel") == "high" else "normal",
+        "priority": priority,
         "voiceHints": {
             "tone": "calm",
-            "pace": "steady" if result.get("riskLevel") != "high" else "fast",
+            "pace": pace,
         },
+    }
+
+
+def build_formal_feedback(result, previous_state, default_interval_ms, force_detailed=False, language="zh-CN"):
+    previous_state = previous_state if isinstance(previous_state, dict) else {}
+    summary = _normalize_text(result.get("summary"))
+    guidance = _normalize_guidance_items(result.get("guidance"))
+    risk_level = _normalize_risk(result.get("riskLevel"))
+
+    previous_summary = _normalize_text(previous_state.get("summary"))
+    previous_guidance = _normalize_guidance_items(previous_state.get("guidance"))
+    previous_risk = _normalize_risk(previous_state.get("riskLevel"))
+    last_spoken_text = _normalize_text(previous_state.get("lastSpokenText"))
+
+    summary_changed = summary != previous_summary
+    guidance_changed = guidance[:2] != previous_guidance[:2]
+    risk_changed = risk_level != previous_risk
+    first_result = not previous_summary and not previous_guidance and previous_risk == "unknown"
+
+    if risk_level == "high":
+        event_type = "danger"
+    elif risk_level in {"medium", "unknown"}:
+        event_type = "warning"
+    elif force_detailed or first_result or summary_changed or guidance_changed or risk_changed:
+        event_type = "change"
+    else:
+        event_type = "stable"
+
+    should_speak = False
+    if risk_level == "high":
+        should_speak = True
+    elif first_result or force_detailed or risk_changed or guidance_changed:
+        should_speak = True
+    elif risk_level in {"medium", "unknown"} and summary_changed:
+        should_speak = True
+    elif event_type == "change" and summary_changed:
+        should_speak = True
+
+    next_interval_ms = _select_next_interval_ms(risk_level, event_type, default_interval_ms)
+    tts_payload = build_tts_payload(
+        result=result,
+        language=language,
+        mode="formal",
+        event_type=event_type,
+    )
+    normalized_tts_text = _normalize_text(tts_payload.get("text"))
+
+    if (
+        should_speak
+        and normalized_tts_text
+        and normalized_tts_text == last_spoken_text
+        and risk_level != "high"
+        and not force_detailed
+    ):
+        should_speak = False
+
+    next_spoken_text = normalized_tts_text if should_speak else last_spoken_text
+    session_state = {
+        "summary": summary,
+        "guidance": guidance,
+        "riskLevel": risk_level,
+        "lastSpokenText": next_spoken_text,
+        "eventType": event_type,
+    }
+
+    return {
+        "eventType": event_type,
+        "shouldSpeak": should_speak,
+        "nextIntervalMs": next_interval_ms,
+        "ttsPayload": tts_payload,
+        "sessionState": session_state,
     }

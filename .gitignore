@@ -5,3 +5,4 @@ __pycache__/
 *.log
 output/debug/
 output/formal/
+.agent_memory.md
