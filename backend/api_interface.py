@@ -37,6 +37,11 @@ def _available_providers(settings):
             "enabled": bool(settings["gemini"]["api_key"]),
         },
         {
+            "id": "ernie",
+            "label": _provider_label(settings, "ernie", "ERNIE"),
+            "enabled": bool(settings["ernie"]["api_key"] and settings["ernie"]["base_url"]),
+        },
+        {
             "id": "kimi",
             "label": _provider_label(settings, "kimi", "Kimi"),
             "enabled": bool(settings["kimi"]["api_key"] and settings["kimi"]["base_url"]),

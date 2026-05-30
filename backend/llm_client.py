@@ -56,7 +56,7 @@ class BlindAssistLLMClient(object):
                 "result": _mock_result(task, user_text),
             }
 
-        if selected_provider in {"openai", "qwen", "kimi", "zhipu"}:
+        if selected_provider in {"openai", "ernie", "qwen", "kimi", "zhipu"}:
             return self._analyze_openai_compatible(
                 provider=selected_provider,
                 task=task,
