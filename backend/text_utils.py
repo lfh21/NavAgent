@@ -42,22 +42,22 @@ SYSTEM_PROMPT = """
 
 GENERAL_ASSISTANCE_SYSTEM_PROMPT = """
 你是盲人视觉辅助系统的综合问答与场景理解模块。
-你的目标是根据图像直接回答用户的问题，并在必要时补充安全提醒。
+你的目标是根据图像直接、简洁地回答用户的问题，方便语音播报。
 
 核心原则：
 1. 用户问什么先答什么；例如形状、颜色、物体、位置、数量、文字、动作等问题，先给出可见答案。
 2. 只基于可见信息判断；看不清、遮挡或不确定时必须说明“不确定”，不能编造。
-3. 回答要简洁，适合语音播报。
-4. 只有画面中存在真实可见、会影响安全或通行的风险时，才输出导航或风险提醒。
-5. 不要把普通视觉问答强行改写成行走建议。
+3. 回答要简洁，适合语音播报；避免展开场景描述和无关细节。
+4. 不输出导航建议、行走方向或风险描述，只专注回答用户问题。
+5. 如果用户问题不清楚，简短说明你能看到的关键信息。
 
 输出规则：
 - 只输出 JSON 对象，不要使用 Markdown，不要输出额外解释。
 - 所有文本使用中文。
-- summary 一句话，优先直接回答用户问题。
-- guidance 给 0 到 4 条相关建议；没有必要行动时返回空数组。
-- hazards 只列真实可见且影响安全或通行的风险；没有风险时返回空数组。
-- riskLevel 使用 low、medium、high、unknown。
+- summary 一句话，直接回答用户问题，尽量不超过 30 个汉字。
+- guidance 必须返回空数组。
+- hazards 必须返回空数组。
+- riskLevel 固定使用 low，除非画面无法判断时使用 unknown。
 - confidence 为 0 到 1 之间的小数，表示对本次判断的把握程度。
 """.strip()
 
@@ -76,23 +76,26 @@ def build_user_prompt(task, mode, user_text):
     task_instruction = {
         "scene_description": "\n".join(
             [
-                "任务侧重：先概括画面场景，再指出会影响安全或通行的风险。",
+                "任务侧重：只概括画面场景特性，再指出会影响安全或通行的风险。",
+                "不要输出导航建议、行走方向或下一步动作；guidance 必须返回空数组。",
                 "如果用户提出具体问题，请在 summary 中先直接回答，再补充必要风险。",
             ]
         ),
         "navigation_guidance": "\n".join(
             [
                 "任务侧重：优先输出下一步行走、停止、转向、避让等可执行指令。",
+                "实时导航时不要做复杂场景描述；summary 只说明是否安全，guidance 只说明接下来从哪里走。",
+                "实时导航时 guidance 尽量 1 到 2 条，第一条必须是最重要的下一步动作。",
                 "只有当用户明确提问具体物体、形状、文字或位置时，才先回答问题再给行动建议。",
             ]
         ),
         "general_assistance": "\n".join(
             [
-                "任务侧重：这是综合辅助/视觉问答模式，不要默认只做导航提醒。",
-                "如果用户提出具体问题，summary 必须先直接回答这个问题；例如询问形状、颜色、物体、位置、数量、文字时，先给出可见答案。",
-                "guidance 只放与用户问题相关的补充建议；如果没有必要行动，返回空数组或很短的确认建议。",
-                "hazards 只列真实可见且会影响安全的风险；不要为了导航而泛化出无关风险。",
-                "riskLevel 按当前画面真实安全风险判断；普通物体识别问题通常为 low，除非画面中有明显危险。",
+                "任务侧重：这是综合辅助/视觉问答模式，只回答用户问题。",
+                "summary 必须直接、简洁回答；不要补充导航建议、行走方向或风险描述。",
+                "guidance 必须返回空数组。",
+                "hazards 必须返回空数组。",
+                "riskLevel 固定使用 low；只有画面无法判断问题答案时使用 unknown。",
             ]
         ),
     }.get(task, "请输出适合盲人辅助场景的结果。")
@@ -113,7 +116,7 @@ def build_user_prompt(task, mode, user_text):
             "请严格输出以下 JSON 结构：",
             json_template,
             "字段约束：",
-            '- summary: 一句话；综合辅助模式下必须先回答用户具体问题，再说明必要风险。',
+            '- summary: 一句话；综合辅助模式下只直接回答用户具体问题，不补充导航或风险描述。',
             '- guidance: 0 到 4 条短建议；高风险时第一条必须是“请先停止”。',
             '- hazards[].type: 使用 obstacle|traffic|pedestrian|step|surface|construction|edge|low_hanging|unknown 等简短英文类型。',
             '- hazards[].severity: 只能是 low、medium、high、unknown。',
@@ -198,6 +201,15 @@ def _dedupe_sentences(items):
     return "".join(unique)
 
 
+def _risk_status_text(risk_level):
+    return {
+        "low": "当前安全",
+        "medium": "有风险",
+        "high": "危险",
+        "unknown": "无法判断安全",
+    }.get(_normalize_risk(risk_level), "无法判断安全")
+
+
 def _select_next_interval_ms(risk_level, event_type, default_interval_ms):
     try:
         base_interval = int(default_interval_ms)
@@ -241,6 +253,12 @@ def normalize_result(raw_result, task, user_text):
     normalized_hazards = _normalize_hazards(raw_result.get("hazards"))
     guidance = _normalize_guidance_items(raw_result.get("guidance"))
     model_risk = _normalize_risk(raw_result.get("riskLevel"))
+    if task == "general_assistance":
+        normalized_hazards = []
+        guidance = []
+        if model_risk != "unknown":
+            model_risk = "low"
+
     hazard_risk = _highest_hazard_risk(normalized_hazards)
     risk_level = model_risk
     if _RISK_RANK[hazard_risk] > _RISK_RANK[risk_level]:
@@ -248,7 +266,7 @@ def normalize_result(raw_result, task, user_text):
 
     normalized = {
         "summary": _normalize_text(raw_result.get("summary")) or "暂时无法生成稳定描述，请重新采集画面。",
-        "guidance": guidance,
+        "guidance": [] if task == "scene_description" else guidance,
         "hazards": normalized_hazards,
         "riskLevel": risk_level,
         "confidence": raw_result.get("confidence", 0.5),
@@ -280,31 +298,42 @@ def build_tts_payload(result, language="zh-CN", mode="debug", event_type=None):
     risk_level = _normalize_risk(result.get("riskLevel"))
 
     if mode == "formal":
-        segments = []
-        primary_hazard = hazards[0] if hazards else ""
+        task = result.get("task")
+        if task == "navigation_guidance":
+            status_text = _risk_status_text(risk_level)
+            next_step = guidance[0] if guidance else ""
+            if risk_level == "high" and not next_step:
+                next_step = "请先停止"
+            elif risk_level == "unknown" and not next_step:
+                next_step = "请原地确认"
 
-        if risk_level == "high":
-            if guidance:
-                segments.append(guidance[0])
-                segments.extend(guidance[1:2])
-            else:
-                segments.append("请先停止")
-            if primary_hazard:
-                segments.append(primary_hazard)
-            if summary:
-                segments.append(summary)
-        elif event_type in {"warning", "change"}:
-            if summary:
-                segments.append(summary)
-            if primary_hazard:
-                segments.append(primary_hazard)
-            segments.extend(guidance[:2])
+            combined_text = _dedupe_sentences([status_text, next_step])
         else:
-            if summary:
-                segments.append(summary)
-            segments.extend(guidance[:1])
+            segments = []
+            primary_hazard = hazards[0] if hazards else ""
 
-        combined_text = _dedupe_sentences(segments[:3])
+            if risk_level == "high":
+                if guidance:
+                    segments.append(guidance[0])
+                    segments.extend(guidance[1:2])
+                else:
+                    segments.append("请先停止")
+                if primary_hazard:
+                    segments.append(primary_hazard)
+                if summary:
+                    segments.append(summary)
+            elif event_type in {"warning", "change"}:
+                if summary:
+                    segments.append(summary)
+                if primary_hazard:
+                    segments.append(primary_hazard)
+                segments.extend(guidance[:2])
+            else:
+                if summary:
+                    segments.append(summary)
+                segments.extend(guidance[:1])
+
+            combined_text = _dedupe_sentences(segments[:3])
     else:
         combined_text = _dedupe_sentences([summary] + hazards[:1] + guidance[:2])
 

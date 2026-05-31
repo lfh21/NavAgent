@@ -339,6 +339,7 @@
 
     target.classList.remove("result-empty", "is-error");
     const result = data.result;
+    const task = result.task || "";
     const meta = document.createElement("div");
     meta.className = "result-meta";
 
@@ -384,24 +385,28 @@
     summary.textContent = result.summary || "暂时无法生成稳定描述，请重新采集画面。";
     appendSection(target, "场景概述", summary);
 
-    appendSection(
-      target,
-      "导航建议",
-      createList(result.guidance, "暂无导航建议", (entry) => document.createTextNode(entry))
-    );
+    if (task !== "scene_description" && task !== "general_assistance") {
+      appendSection(
+        target,
+        "导航建议",
+        createList(result.guidance, "暂无导航建议", (entry) => document.createTextNode(entry))
+      );
+    }
 
-    appendSection(
-      target,
-      "风险提醒",
-      createList(result.hazards, "没有发现明显风险", (entry) => {
-        const wrapper = document.createElement("span");
-        const severity = document.createElement("strong");
-        severity.textContent = riskLabel(entry.severity);
-        wrapper.appendChild(severity);
-        wrapper.appendChild(document.createTextNode("：" + (entry.description || "未提供风险描述")));
-        return wrapper;
-      })
-    );
+    if (task !== "general_assistance") {
+      appendSection(
+        target,
+        "风险提醒",
+        createList(result.hazards, "没有发现明显风险", (entry) => {
+          const wrapper = document.createElement("span");
+          const severity = document.createElement("strong");
+          severity.textContent = riskLabel(entry.severity);
+          wrapper.appendChild(severity);
+          wrapper.appendChild(document.createTextNode("：" + (entry.description || "未提供风险描述")));
+          return wrapper;
+        })
+      );
+    }
 
     const tts = document.createElement("p");
     tts.className = "result-tts";
@@ -446,7 +451,11 @@
     startFormal.disabled = liveLoopActive && !liveLoopPaused;
     stopFormal.disabled = !liveLoopActive && !currentStream;
     startCamera.disabled = Boolean(currentStream);
-    startFormal.textContent = liveLoopPaused ? "继续实时分析" : "开始实时分析";
+    if (formalTask.value === "scene_description" || formalTask.value === "general_assistance") {
+      startFormal.textContent = liveLoopPaused ? "继续分析" : "分析一次";
+    } else {
+      startFormal.textContent = liveLoopPaused ? "继续实时分析" : "开始实时分析";
+    }
   }
 
   function updateFormalRuntime(eventType) {
@@ -773,6 +782,15 @@
       if (data.shouldSpeak) {
         speakPayload(data.ttsPayload);
       }
+
+      if (formalTask.value === "scene_description" || formalTask.value === "general_assistance") {
+        liveLoopActive = false;
+        liveLoopPaused = false;
+        clearFormalTimer();
+        setFormalStatus("本次分析已完成，不会继续自动汇报。", "info");
+        updateFormalRuntime("idle");
+        updateFormalControls();
+      }
     } catch (error) {
       setFormalStatus("实时分析失败：" + error.message, "danger");
       setLatestTtsPayload(null);
@@ -987,7 +1005,10 @@
   formalSpeechInput.addEventListener("click", function () {
     startSpeechInput(formalSpeechInput, formalText, formalSpeechStatus);
   });
-  formalTask.addEventListener("change", queueImmediateRefresh);
+  formalTask.addEventListener("change", function () {
+    updateFormalControls();
+    queueImmediateRefresh();
+  });
   formalInterval.addEventListener("change", function () {
     applyFormalIntervalValue(formalInterval.value || 1500, "输入框");
   });

@@ -181,7 +181,8 @@ python cli.py runserver
 - 调用浏览器摄像头
 - 周期性截取当前视频帧
 - 搭配实时文字输入
-- 持续输出描述或寻路指令
+- `navigation_guidance` 下持续输出寻路指令
+- `scene_description` / `general_assistance` 下按需执行单次分析
 
 
 ## 7. 接口概览
