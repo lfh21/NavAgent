@@ -1,17 +1,16 @@
 # blind-assist-web-demo
 
-这是一个 Web Demo 项目，用于展示盲人辅助系统的最小可行实现。它四类模块：
+这是一个网页端盲人视觉辅助系统 Demo，用于展示“前端交互 + 后端大模型响应处理 + 多模态大模型 API + 语音/日志等扩展能力”的最小可演示实现。
 
-1. 前端交互
-2. 后端大模型响应处理
-3. 大模型 API 接口
-4. 额外功能
+系统提供两种使用模式：
 
+- `图片导航模式`：上传单张图片，适合调试模型、prompt 和图片输入质量。
+- `视频导航模式`：调用浏览器摄像头，前端定时截取视频帧并通过 HTTP 发给后端分析；寻路任务可持续轮询，场景描述和综合辅助默认单次分析。
 
 ## 1. 项目结构
 
 ```text
-agent-demo-api/
+NavAgent/
 ├── backend/
 │   ├── __init__.py
 │   ├── api_interface.py
@@ -19,6 +18,8 @@ agent-demo-api/
 │   ├── file_tools.py
 │   ├── llm_client.py
 │   └── text_utils.py
+├── docs/
+│   └── api-contract.md
 ├── frontend/
 │   ├── app.js
 │   ├── index.html
@@ -27,123 +28,53 @@ agent-demo-api/
 ├── file_utils.py
 ├── main.py
 ├── output/
+├── pyproject.toml
+├── requirements.txt
 ├── README.md
-└── requirements.txt
+├── 使用方法.md
+└── 盲人辅助系统架构计划.md
 ```
 
-## 2. 满足大作业要求
+## 2. 功能概览
 
+### 前端交互
 
-#### 前端交互
+- 图片导航模式上传图片并展示结构化分析结果。
+- 视频导航模式调用摄像头、截帧、压缩为 JPEG 后提交分析。
+- 支持任务切换：`scene_description`、`navigation_guidance`、`general_assistance`。
+- 支持 provider 切换，并在页面标记未配置的 provider。
+- 支持浏览器 `speechSynthesis` 播报结果。
+- 支持浏览器语音输入，将语音识别内容写入问题文本框。
+- 视频导航模式支持盲操作快捷键：空格、`S`、`X`、`-`、`+`。
 
-- `frontend/index.html`
-- `frontend/app.js`
-- `frontend/styles.css`
+### 后端处理
 
-功能：
+- 接收 multipart 图片或 JSON base64 图片帧。
+- 按任务构造盲人辅助场景 prompt。
+- 调用视觉大模型并提取 JSON。
+- 规范化 `summary`、`guidance`、`hazards`、`riskLevel`、`confidence`。
+- 为语音播报生成 `ttsPayload`。
+- 视频导航模式根据风险、变化和上一轮状态返回 `shouldSpeak`、`eventType`、`nextIntervalMs`。
+- 保存调试图片、结果 JSON 和正式模式 JSONL 日志。
 
-- Debug 模式上传图片
-- Formal 模式打开摄像头
-- 实时输入文本
-- 切换 provider
-- 返回场景分析或寻路结果
+### 模型接口
 
-#### 后端大模型响应处理
+`backend/llm_client.py` 当前支持：
 
-- `backend/api_interface.py`
-- `backend/text_utils.py`
-- `backend/file_tools.py`
+- `openai`：OpenAI SDK
+- `ernie`：OpenAI 兼容接口
+- `qwen`：OpenAI 兼容接口
+- `kimi`：OpenAI 兼容接口
+- `zhipu`：OpenAI 兼容接口
+- `gemini`：Gemini REST API
+- `mock`：后端模拟结果，主要用于接口调试
 
-功能：
+注意：前端 provider 下拉框默认展示真实 provider；`mock` 可通过 API 或代码配置测试后端链路。
 
-- 接收前端图片或视频帧
-- 统一 prompt
-- 规范化 JSON 响应
-- 生成 TTS 载荷
-- 保存调试结果到本地
+## 3. 环境要求
 
-#### 大模型 API 接口
-
-- `backend/llm_client.py`
-- `backend/config.py`
-
-支持：
-
-- OpenAI SDK
-- ERNIE 兼容 OpenAI 接口
-- Qwen3.6-Plus 兼容 OpenAI 接口
-- Gemini REST API
-- Kimi 兼容 OpenAI 接口
-- ZhipuAI 兼容 OpenAI 接口
-- Mock provider
-
-#### 其他功能
-
-- `output/` 本地归档
-- `POST /api/tts/payload` TTS 载荷接口
-- Formal 模式实时轮询分析
-
-## 3. 技术准备与环境搭建
-
-### 大模型 API 文档
-
-- OpenAI SDK
-- Gemini API
-- Kimi API / OpenAI-Compatible 接口
-- ZhipuAI SDK
-
-### API Key
-
-需要自行准备。当前 Demo 支持这些 provider：
-
-- `openai`
-- `ernie`
-- `qwen`
-- `gemini`
-- `kimi`
-- `zhipu`
-
-### 开发语言与环境
-
-
-- `Python 3.10+`
-
-
-## 4. 环境变量
-
-建议通过 shell 环境变量配置：
-
-```bash
-export APP_HOST=127.0.0.1
-export APP_PORT=8000
-export APP_DEBUG=true
-export DEFAULT_PROVIDER=mock
-
-export OPENAI_API_KEY=...
-export OPENAI_BASE_URL=https://api.openai.com/v1
-export OPENAI_MODEL=gpt-4o-mini
-
-export GEMINI_API_KEY=...
-export GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta
-export GEMINI_MODEL=gemini-2.5-flash
-
-export ERNIE_API_KEY=...
-export ERNIE_BASE_URL=https://llmapi.paratera.com
-export ERNIE_MODEL=ERNIE-4.5-Turbo-VL-32K
-
-export QWEN_API_KEY=...
-export QWEN_BASE_URL=https://your-qwen-base-url/v1/
-export QWEN_MODEL=Qwen3.6-Plus
-
-export KIMI_API_KEY=...
-export KIMI_BASE_URL=https://api.moonshot.cn/v1
-export KIMI_MODEL=kimi-k2.6
-
-export ZHIPU_API_KEY=...
-export ZHIPU_MODEL=glm-4v-flash
-```
-
-## 5. 启动方式
+- Python `3.11+`，与 `pyproject.toml` 保持一致。
+- 依赖见 `requirements.txt`。
 
 安装依赖：
 
@@ -151,45 +82,89 @@ export ZHIPU_MODEL=glm-4v-flash
 pip install -r requirements.txt
 ```
 
-启动服务：
+## 4. 配置
+
+项目启动时会先加载 `.env.example`，再加载 `.env`。后加载的 `.env` 会覆盖默认值，所以本地密钥应写在 `.env` 中。
+
+可从 `.env.example` 复制一份：
+
+```bash
+cp .env.example .env
+```
+
+Windows PowerShell 可使用：
+
+```powershell
+Copy-Item .env.example .env
+```
+
+关键配置项：
+
+```env
+APP_HOST=127.0.0.1
+APP_PORT=8000
+APP_DEBUG=true
+DEFAULT_PROVIDER=qwen
+FORMAL_INTERVAL_MS=1500
+OUTPUT_DIR=output
+
+QWEN_API_KEY=
+QWEN_BASE_URL=
+QWEN_MODEL=Qwen3.6-Plus
+```
+
+完整 provider 配置请看 `.env.example` 或 [使用方法.md](使用方法.md)。
+
+## 5. 启动
+
+直接启动：
 
 ```bash
 python main.py
 ```
 
-或者：
+或使用 CLI：
 
 ```bash
 python cli.py runserver
+```
+
+指定地址：
+
+```bash
+python cli.py runserver --host 127.0.0.1 --port 8000
+```
+
+查看配置：
+
+```bash
+python cli.py show-config
 ```
 
 默认页面地址：
 
 - `http://127.0.0.1:8000/`
 
-## 6. Web 页面模式
-
-### Debug 模式
-
-- 上传一张图片
-- 输入用户文字
-- 返回稳定的场景分析
-- 自动保存调试图片和结果到 `output/debug/`
-
-### Formal 模式
-
-- 调用浏览器摄像头
-- 周期性截取当前视频帧
-- 搭配实时文字输入
-- `navigation_guidance` 下持续输出寻路指令
-- `scene_description` / `general_assistance` 下按需执行单次分析
-
-
-## 7. 接口概览
+## 6. 接口概览
 
 - `GET /`
+- `GET /assets/<filename>`
 - `GET /api/health`
 - `GET /api/providers`
 - `POST /api/debug/analyze`
 - `POST /api/formal/analyze`
 - `POST /api/tts/payload`
+
+详细请求和响应字段见 [docs/api-contract.md](docs/api-contract.md)。
+
+## 7. 输出文件
+
+- `output/debug/`：保存图片导航模式上传的图片和响应 JSON。
+- `output/formal/`：按 `sessionId` 保存视频导航模式 JSONL 日志。
+
+## 8. 当前边界
+
+- 当前不是 WebSocket 视频流，而是“浏览器截帧 + HTTP 请求”。
+- 尚未接入独立 TTS 合成服务，网页端使用浏览器原生播报。
+- 视频导航依赖浏览器摄像头权限。
+- 长时间运行时仅维护轻量会话状态，没有复杂的多轮记忆压缩。
